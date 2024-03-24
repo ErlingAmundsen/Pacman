@@ -10,7 +10,9 @@ from pauser import Pause
 from text import TextGroup
 from sprites import LifeSprites
 from sprites import MazeSprites
-from mazedata import MazeData
+from mazes import MazeController
+from mazedata import MazeData######
+import algorithms as alg
 
 class GameController(object):
     def __init__(self):
@@ -32,7 +34,8 @@ class GameController(object):
         self.flashTimer = 0
         self.fruitCaptured = []
         self.fruitNode = None
-        self.mazedata = MazeData()
+        self.maze = MazeController()
+        self.mazedata = MazeData()######
 
     def setBackground(self):
         self.background_norm = pygame.surface.Surface(SCREENSIZE).convert()
@@ -60,7 +63,6 @@ class GameController(object):
         self.ghosts.clyde.setStartNode(self.nodes.getNodeFromTiles(*self.mazedata.obj.addOffset(4, 3)))
         self.ghosts.setSpawnNode(self.nodes.getNodeFromTiles(*self.mazedata.obj.addOffset(2, 3)))
         self.ghosts.blinky.setStartNode(self.nodes.getNodeFromTiles(*self.mazedata.obj.addOffset(2, 0)))
-
         self.nodes.denyHomeAccess(self.pacman)
         self.nodes.denyHomeAccessList(self.ghosts)
         self.ghosts.inky.startNode.denyAccess(RIGHT, self.ghosts.inky)
@@ -96,12 +98,19 @@ class GameController(object):
         self.nodes.denyAccessList(12, 26, UP, self.ghosts)
         self.nodes.denyAccessList(15, 26, UP, self.ghosts)
 
+    def getDijkstraPath(self):
+        lastPacmanNode = self.pacman.target
+        lastPacmanNode = self.nodes.getPixelsFromNode(lastPacmanNode)
+        previous_nodes, shortest_path = alg.dijkstra_or_a_star(self.nodes, self.ghosts.blinky.target, a_star=True)
+
         
 
     def update(self):
         dt = self.clock.tick(30) / 1000.0
         self.textgroup.update(dt)
         self.pellets.update(dt)
+
+        
         if not self.pause.paused:
             self.ghosts.update(dt)      
             if self.fruit is not None:
@@ -109,10 +118,19 @@ class GameController(object):
             self.checkPelletEvents()
             self.checkGhostEvents()
             self.checkFruitEvents()
-
+        direction = None
         if self.pacman.alive:
             if not self.pause.paused:
-                self.pacman.update(dt)
+                # self.pacman.position is floats, self.pacman.node.position is ints
+                # so we need to check if they are close enough to be considered the same +-1 
+        
+                # if self.pacman.position == self.pacman.node.position:
+                #     print('hello')
+                #     direction = DOWN
+                if self.pacman.collideCheck(self.pacman.target):
+                    print('hello')
+                    direction = self.pacman.randomDirection(self.pacman.validDirections())
+                self.pacman.update(dt, direction)
         else:
             self.pacman.update(dt)
 
@@ -272,6 +290,27 @@ class GameController(object):
 if __name__ == "__main__":
     game = GameController()
     game.startGame()
+    # print the LUT of all the nodes
+    print(game.nodes.nodesLUT)
+    print(len(game.nodes._count))
+    # print the amount of edges
+    
+    #TLDR commented below is to see if we have the correct amount of edges
+    # in our lengthj table
+    
+    # edge_count = 0
+    # seen_nodes = []
+    # for node in game.nodes.nodesLUT:
+    #     neighbours = game.nodes.getNeighbors(node)
+    #     for neighbour in neighbours:
+    #         pair = (node, neighbour)
+    #         pair2 = (neighbour, node)
+    #         if pair not in seen_nodes and pair2 not in seen_nodes:
+    #             seen_nodes.append(pair)
+    #             seen_nodes.append(pair2)
+    #             edge_count += 1
+    # print(edge_count)
+        
     while True:
         game.update()
 

@@ -15,6 +15,9 @@ class Pacman(Entity):
         self.alive = True
         self.sprites = PacmanSprites(self)
 
+        self.currentnode = None
+
+
     def reset(self):
         Entity.reset(self)
         self.direction = LEFT
@@ -27,10 +30,12 @@ class Pacman(Entity):
         self.alive = False
         self.direction = STOP
 
-    def update(self, dt):	
+    def update(self, dt, given_dir = None):	
         self.sprites.update(dt)
         self.position += self.directions[self.direction]*self.speed*dt
         direction = self.getValidKey()
+        if given_dir is not None:
+            direction = given_dir
         if self.overshotTarget():
             self.node = self.target
             if self.node.neighbors[PORTAL] is not None:
@@ -43,6 +48,7 @@ class Pacman(Entity):
 
             if self.target is self.node:
                 self.direction = STOP
+    
             self.setPosition()
         else: 
             if self.oppositeDirection(direction):

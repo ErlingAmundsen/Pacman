@@ -2,15 +2,27 @@ import pygame
 from vector import Vector2
 from constants import *
 import numpy as np
+import sys
 
 class Node(object):
     def __init__(self, x, y):
         self.position = Vector2(x, y)
         self.neighbors = {UP:None, DOWN:None, LEFT:None, RIGHT:None, PORTAL:None}
+        
+        ## added this for easier lookup later and we can initalize it at game start
+        ## set to max just in case we dont map an edge
+        self.neighborslength = {UP:sys.maxsize, DOWN:sys.maxsize, LEFT:sys.maxsize, RIGHT:sys.maxsize, PORTAL:sys.maxsize}
+        ## This will be the check if the edge in that direction has been visited, so that we will be sure
+        ## to continue untill all edges have been visited
+        self.visited = {UP:False, DOWN:False, LEFT:False, RIGHT:False, PORTAL:False}
+        
         self.access = {UP:[PACMAN, BLINKY, PINKY, INKY, CLYDE, FRUIT], 
                        DOWN:[PACMAN, BLINKY, PINKY, INKY, CLYDE, FRUIT], 
                        LEFT:[PACMAN, BLINKY, PINKY, INKY, CLYDE, FRUIT], 
                        RIGHT:[PACMAN, BLINKY, PINKY, INKY, CLYDE, FRUIT]}
+        
+        # added this to check if pacman is on a node
+        self.collideRadius = 1
 
     def denyAccess(self, direction, entity):
         if entity.name in self.access[direction]:
@@ -35,6 +47,7 @@ class NodeGroup(object):
         self.nodesLUT = {}
         self.nodeSymbols = ['+', 'P', 'n']
         self.pathSymbols = ['.', '-', '|', 'p']
+        self._count = []
         data = self.readMazeFile(level)
         self.createNodeTable(data)
         self.connectHorizontally(data)
@@ -43,6 +56,51 @@ class NodeGroup(object):
 
     def readMazeFile(self, textfile):
         return np.loadtxt(textfile, dtype='<U1')
+    
+    ## added all below functions to calculate distance when creating the nodes
+    ## to save time when calculating the path later on
+    def checknext(self, next):
+        # currently treating 
+        if next == '.' or next == 'p':
+            return DISTANCEDICT[PELLET]
+        elif next == '-' or next == '|':
+            return DISTANCEDICT[NOPELLET]
+        else:
+            return False
+    
+
+    def getlenghtright(self, data, row, col, lenght=0):
+        lenght = lenght
+        check = True
+        next_row = row
+        next_col = col
+        while check:
+            try:
+                next = data[next_row][next_col+1]
+            except:
+                return lenght
+            check = self.checknext(next)
+            if check:
+                lenght += check
+            next_col += 1
+        return lenght
+    
+    def getlenghtdown(self, data, row, col, lenght=0):
+        lenght = lenght
+        check = True
+        row = row
+        col = col
+        while check:
+            try:
+                next = data[row-1][col]
+            except:
+                return lenght
+            check = self.checknext(next)
+            if check:
+                lenght += check
+            row += 1
+        return lenght
+    
 
     def createNodeTable(self, data, xoffset=0, yoffset=0):
         for row in list(range(data.shape[0])):
@@ -50,11 +108,13 @@ class NodeGroup(object):
                 if data[row][col] in self.nodeSymbols:
                     x, y = self.constructKey(col+xoffset, row+yoffset)
                     self.nodesLUT[(x, y)] = Node(x, y)
+                    
 
     def constructKey(self, x, y):
         return x * TILEWIDTH, y * TILEHEIGHT
+    
 
-
+    
     def connectHorizontally(self, data, xoffset=0, yoffset=0):
         for row in list(range(data.shape[0])):
             key = None
@@ -64,8 +124,21 @@ class NodeGroup(object):
                         key = self.constructKey(col+xoffset, row+yoffset)
                     else:
                         otherkey = self.constructKey(col+xoffset, row+yoffset)
+
+
                         self.nodesLUT[key].neighbors[RIGHT] = self.nodesLUT[otherkey]
                         self.nodesLUT[otherkey].neighbors[LEFT] = self.nodesLUT[key]
+                       
+                       # added this to get the lenght of the edge, adds same lenght to both nodes
+                        # since they are the same edge
+                        len_right = self.getlenghtright(data, row, col)
+                        if len_right > 0:
+                            self.nodesLUT[key].neighborslength[RIGHT] = len_right
+                            self.nodesLUT[otherkey].neighborslength[LEFT] = len_right
+
+                   
+                        self._count.append(len_right)
+                        
                         key = otherkey
                 elif data[row][col] not in self.pathSymbols:
                     key = None
@@ -82,6 +155,17 @@ class NodeGroup(object):
                         otherkey = self.constructKey(col+xoffset, row+yoffset)
                         self.nodesLUT[key].neighbors[DOWN] = self.nodesLUT[otherkey]
                         self.nodesLUT[otherkey].neighbors[UP] = self.nodesLUT[key]
+
+                        ## see above
+                        len_down = self.getlenghtdown(dataT, row, col)
+                        if len_down > 0:
+                            self.nodesLUT[key].neighborslength[DOWN] = len_down
+                            self.nodesLUT[otherkey].neighborslength[UP] = len_down
+
+
+                        self._count.append(len_down)
+
+
                         key = otherkey
                 elif dataT[col][row] not in self.pathSymbols:
                     key = None
@@ -126,7 +210,18 @@ class NodeGroup(object):
         if (x, y) in self.nodesLUT.keys():
             return self.nodesLUT[(x, y)]
         return None
+    
+    ## Added this to implement Dijkstra's and or A*
+    ## stolen from Homework 2
+    def getListOfNodesPixels(self):
+        return list(self.nodesLUT)
 
+    # returns a node in (x,y) format
+    def getPixelsFromNode(self, node):
+        id = list(self.nodesLUT.values()).index(node)
+        listOfPix = self.getListOfNodesPixels()
+        return listOfPix[id]
+    
     def denyAccess(self, col, row, direction, entity):
         node = self.getNodeFromTiles(col, row)
         if node is not None:
@@ -162,3 +257,30 @@ class NodeGroup(object):
     def render(self, screen):
         for node in self.nodesLUT.values():
             node.render(screen)
+
+
+    ## ADDEd from Homework 3
+    def getListOfNodesVector(self):
+        return list(self.nodesLUT)
+
+    # returns a node in (x,y) format
+    def getVectorFromLUTNode(self, node):
+        id = list(self.nodesLUT.values()).index(node)
+        listOfVectors = self.getListOfNodesVector()
+        return listOfVectors[id]        
+    
+    def getNeighborsObj(self, node):
+        node_obj = self.getNodeFromPixels(node[0], node[1])
+        return node_obj.neighbors
+    
+    def getNeighbors(self, node):
+        neighs_LUT = self.getNeighborsObj(node)
+        vals = neighs_LUT.values()
+        neighs_LUT2 = []
+        for direction in vals:
+            if not direction is None:
+                neighs_LUT2.append(direction)
+        list_neighs = []
+        for neigh in neighs_LUT2:
+            list_neighs.append(self.getVectorFromLUTNode(neigh))
+        return list_neighs

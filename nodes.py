@@ -8,6 +8,8 @@ class Node(object):
     def __init__(self, x, y):
         self.position = Vector2(x, y)
         self.neighbors = {UP:None, DOWN:None, LEFT:None, RIGHT:None, PORTAL:None}
+
+        self.neighbors_costs = {}
         
         ## added this for easier lookup later and we can initalize it at game start
         ## set to max just in case we dont map an edge
@@ -53,6 +55,7 @@ class NodeGroup(object):
         self.connectHorizontally(data)
         self.connectVertically(data)
         self.homekey = None
+        self.costs = self.get_nodes()
 
     def readMazeFile(self, textfile):
         return np.loadtxt(textfile, dtype='<U1')
@@ -259,6 +262,30 @@ class NodeGroup(object):
             node.render(screen)
 
 
+    ## made by me
+            
+
+    def getDirection(self, node1, node2):
+        if node1.position.x == node2.position.x:
+            if node1.position.y > node2.position.y:
+                return UP
+            else:
+                return DOWN
+        elif node1.position.y == node2.position.y:
+            if node1.position.x > node2.position.x:
+                return LEFT
+            else:
+                return RIGHT
+        return None
+
+
+
+
+    #################
+    #################
+    #################
+    ################# 
+            
     ## ADDEd from Homework 3
     def getListOfNodesVector(self):
         return list(self.nodesLUT)
@@ -272,6 +299,7 @@ class NodeGroup(object):
     def getNeighborsObj(self, node):
         node_obj = self.getNodeFromPixels(node[0], node[1])
         return node_obj.neighbors
+
     
     def getNeighbors(self, node):
         neighs_LUT = self.getNeighborsObj(node)
@@ -284,3 +312,20 @@ class NodeGroup(object):
         for neigh in neighs_LUT2:
             list_neighs.append(self.getVectorFromLUTNode(neigh))
         return list_neighs
+
+    
+    def get_nodes(self):
+        costs_dict = {}
+        listOfNodesPixels = self.getListOfNodesVector()
+        for node in listOfNodesPixels:
+            neigh = self.getNeighborsObj(node)
+            temp_neighs = neigh.values()
+            temp_list = []
+            for direction in temp_neighs:
+                if not direction is None:
+                    temp_list.append(1)
+                else:
+                    temp_list.append(None)
+            costs_dict[node] = temp_list
+        # print(costs_dict)
+        return costs_dict

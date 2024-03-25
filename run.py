@@ -13,6 +13,8 @@ from sprites import MazeSprites
 from mazes import MazeController
 from mazedata import MazeData######
 import algorithms as alg
+import random
+
 
 class GameController(object):
     def __init__(self):
@@ -119,17 +121,23 @@ class GameController(object):
             self.checkGhostEvents()
             self.checkFruitEvents()
         direction = None
+        
         if self.pacman.alive:
+            
             if not self.pause.paused:
                 # self.pacman.position is floats, self.pacman.node.position is ints
                 # so we need to check if they are close enough to be considered the same +-1 
         
                 # if self.pacman.position == self.pacman.node.position:
                 #     print('hello')
-                #     direction = DOWN
+                #      direction = DOWN
                 if self.pacman.collideCheck(self.pacman.target):
                     print('hello')
                     direction = self.pacman.randomDirection(self.pacman.validDirections())
+                    target = random.choice(list(self.nodes.nodesLUT.keys()))
+                    _, shortest_path = alg.dijkstra_or_a_star(self.nodes,self.pacman.node)
+                    print(shortest_path)
+                
                 self.pacman.update(dt, direction)
         else:
             self.pacman.update(dt)
@@ -283,7 +291,6 @@ class GameController(object):
             x = SCREENWIDTH - self.fruitCaptured[i].get_width() * (i+1)
             y = SCREENHEIGHT - self.fruitCaptured[i].get_height()
             self.screen.blit(self.fruitCaptured[i], (x, y))
-
         pygame.display.update()
 
 
@@ -291,14 +298,14 @@ if __name__ == "__main__":
     game = GameController()
     game.startGame()
     # print the LUT of all the nodes
-    print(game.nodes.nodesLUT)
-    print(len(game.nodes._count))
+    # print(game.nodes.nodesLUT)
+    # print(len(game.nodes._count))
     # print the amount of edges
     
     #TLDR commented below is to see if we have the correct amount of edges
     # in our lengthj table
     
-    # edge_count = 0
+    # edge_count = 0d
     # seen_nodes = []
     # for node in game.nodes.nodesLUT:
     #     neighbours = game.nodes.getNeighbors(node)

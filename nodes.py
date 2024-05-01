@@ -13,10 +13,10 @@ class Node(object):
         
         ## added this for easier lookup later and we can initalize it at game start
         ## set to max just in case we dont map an edge
-        self.neighborslength = {UP:sys.maxsize, DOWN:sys.maxsize, LEFT:sys.maxsize, RIGHT:sys.maxsize, PORTAL:sys.maxsize}
+        self.neighborslength = {UP:None, DOWN:None, LEFT:None, RIGHT:None, PORTAL:None}
         ## This will be the check if the edge in that direction has been visited, so that we will be sure
         ## to continue untill all edges have been visited
-        self.visited = {UP:False, DOWN:False, LEFT:False, RIGHT:False, PORTAL:False}
+        self.visited = {UP:None, DOWN:None, LEFT:None, RIGHT:None, PORTAL:None}
         
         self.access = {UP:[PACMAN, BLINKY, PINKY, INKY, CLYDE, FRUIT], 
                        DOWN:[PACMAN, BLINKY, PINKY, INKY, CLYDE, FRUIT], 
@@ -24,7 +24,7 @@ class Node(object):
                        RIGHT:[PACMAN, BLINKY, PINKY, INKY, CLYDE, FRUIT]}
         
         # added this to check if pacman is on a node
-        self.collideRadius = 1
+        self.collideRadius = 0
 
     def denyAccess(self, direction, entity):
         if entity.name in self.access[direction]:
@@ -56,52 +56,59 @@ class NodeGroup(object):
         self.connectVertically(data)
         self.homekey = None
         self.costs = self.get_nodes()
+        self.data = data
+        self.calc_distance(self.getStartTempNode())
 
     def readMazeFile(self, textfile):
         return np.loadtxt(textfile, dtype='<U1')
     
     ## added all below functions to calculate distance when creating the nodes
     ## to save time when calculating the path later on
+
     def checknext(self, next):
         # currently treating 
         if next == '.' or next == 'p':
             return DISTANCEDICT[PELLET]
         elif next == '-' or next == '|':
             return DISTANCEDICT[NOPELLET]
+        if next == 'P' or next == 'n' or next == '+':
+            return None
         else:
             return False
     
 
     def getlenghtright(self, data, row, col, lenght=0):
-        lenght = lenght
+        lenght = 0
         check = True
-        next_row = row
-        next_col = col
-        while check:
+        next_row = int(row)
+        next_col = int(col)
+        while check is not None:
             try:
                 next = data[next_row][next_col+1]
-            except:
+            except Exception as e:
+                print('error', e)
                 return lenght
             check = self.checknext(next)
-            if check:
+            if check is not None:
                 lenght += check
             next_col += 1
         return lenght
     
     def getlenghtdown(self, data, row, col, lenght=0):
-        lenght = lenght
+        lenght = 0
         check = True
-        row = row
-        col = col
-        while check:
+        next_row = int(row)
+        next_col = int(col)
+        while check is not None:
             try:
-                next = data[row-1][col]
+                next = data[next_row-1][next_col]
             except:
+                print('error on down')
                 return lenght
             check = self.checknext(next)
-            if check:
+            if check is not None:
                 lenght += check
-            row += 1
+            next_row -= 1
         return lenght
     
 
@@ -134,13 +141,14 @@ class NodeGroup(object):
                        
                        # added this to get the lenght of the edge, adds same lenght to both nodes
                         # since they are the same edge
-                        len_right = self.getlenghtright(data, row, col)
-                        if len_right > 0:
-                            self.nodesLUT[key].neighborslength[RIGHT] = len_right
-                            self.nodesLUT[otherkey].neighborslength[LEFT] = len_right
+                        # len_right = self.getlenghtright(data, row, col)
+                        # if len_right > 0:
+                        #     self.nodesLUT[key].neighborslength[RIGHT] = len_right
+                        #     self.nodesLUT[otherkey].neighborslength[LEFT] = len_right
 
-                   
-                        self._count.append(len_right)
+
+                        # # here for debugging
+                        # self._count.append(len_right)
                         
                         key = otherkey
                 elif data[row][col] not in self.pathSymbols:
@@ -159,14 +167,14 @@ class NodeGroup(object):
                         self.nodesLUT[key].neighbors[DOWN] = self.nodesLUT[otherkey]
                         self.nodesLUT[otherkey].neighbors[UP] = self.nodesLUT[key]
 
-                        ## see above
-                        len_down = self.getlenghtdown(dataT, row, col)
-                        if len_down > 0:
-                            self.nodesLUT[key].neighborslength[DOWN] = len_down
-                            self.nodesLUT[otherkey].neighborslength[UP] = len_down
+                        # ## see above
+                        # len_down = self.getlenghtdown(dataT, row, col)
+                        # if len_down > 0:
+                        #     self.nodesLUT[key].neighborslength[DOWN] = len_down
+                        #     self.nodesLUT[otherkey].neighborslength[UP] = len_down
 
-
-                        self._count.append(len_down)
+                        # ## here for debugging
+                        # self._count.append(len_down)
 
 
                         key = otherkey
@@ -277,6 +285,7 @@ class NodeGroup(object):
             else:
                 return RIGHT
         return None
+    
 
 
 
@@ -327,5 +336,34 @@ class NodeGroup(object):
                 else:
                     temp_list.append(None)
             costs_dict[node] = temp_list
-        # print(costs_dict)
+        print(costs_dict)
         return costs_dict
+    
+    ## made to get the lenght of the edge between two nodes
+    def calc_distance_helper(self, node1, node2):
+        if node1.position.x == node2.position.x:
+            if node1.position.y > node2.position.y:
+                return self.getlenghtdown(self.data, node1.position.y//TILEHEIGHT, node1.position.x//TILEWIDTH)
+            else:
+                return self.getlenghtdown(self.data, node2.position.y//TILEHEIGHT, node2.position.x//TILEWIDTH)
+        elif node1.position.y == node2.position.y:
+            start_col = min(node1.position.x, node2.position.x) // TILEWIDTH
+            return self.getlenghtright(self.data, node1.position.y // TILEHEIGHT, start_col)
+
+    
+    def calc_distance(self, node1):
+        # itterate over all nodes and get the distance to all neighbors then store it in the node.
+        nodes = self.nodesLUT
+        for node in nodes:
+            neighs = nodes[node].neighbors
+            for direction in neighs:
+                if neighs[direction] is not None:
+                    actual_dir = self.getDirection(nodes[node], neighs[direction])
+                    dist = self.calc_distance_helper(nodes[node], neighs[direction])
+                    if dist == 0:
+                        # debuggin tool
+                        print(node, direction, neighs[direction], 'dist = 0')
+                    nodes[node].neighborslength[actual_dir] = dist
+                    nodes[node].visited[actual_dir] = False
+
+

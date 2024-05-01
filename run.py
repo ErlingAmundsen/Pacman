@@ -15,7 +15,6 @@ from mazedata import MazeData######
 import algorithms as alg
 import random
 
-
 class GameController(object):
     def __init__(self):
         pygame.init()
@@ -128,16 +127,105 @@ class GameController(object):
                 # self.pacman.position is floats, self.pacman.node.position is ints
                 # so we need to check if they are close enough to be considered the same +-1 
         
-                # if self.pacman.position == self.pacman.node.position:
-                #     print('hello')
-                #      direction = DOWN
-                if self.pacman.collideCheck(self.pacman.target):
-                    print('hello')
+                # only doing dijkstra if pacman is on a new node and not too close to a ghost
+                if self.pacman.collideCheck(self.pacman.target) and not self.pacman.is_ghost_tooclose(self.ghosts):
+                    
+
                     direction = self.pacman.randomDirection(self.pacman.validDirections())
-                    target = random.choice(list(self.nodes.nodesLUT.keys()))
-                    _, shortest_path = alg.dijkstra_or_a_star(self.nodes,self.pacman.node)
-                    print(shortest_path)
+                    
+                    # get start node as a tuple (int, int)
+                    start_node = self.pacman.target.position.asTuple()
+
+                    # I dont know why I have to do this
+                    if start_node == (216.0, 224):
+                        start_node = (240, 224)
+
+                    
+                    # look into dijkstra_or_a_star as i have done changes there
+                    previous_nodes, shortest_path = alg.dijkstra_or_a_star(self.nodes,start_node, a_star=False,ghosts = self.ghosts)
+    
+
                 
+                    node_list = list(self.nodes.nodesLUT.keys())
+
+                    # finds the best node to go to given that we want a long path
+                    self.pacman.shouldPacmanGoThere(shortest_path, self.nodes,self.pacman.goalNode, node_list)
+                    
+                    node = self.pacman.goalNode
+
+                    
+                    # makes sure we have a destination
+                    if node != None:
+                        while shortest_path[node] == 0:
+
+                            node_list.remove(node)
+                            node = self.pacman.findNewTarget(self.nodes, shortest_path, node_list)
+                            if node == None:
+                                break
+                            print('shortest', shortest_path[node])
+                    self.pacman.goalNode = node
+                    last = None
+                    count = 0
+                    
+                        
+                    # finds the first node from djikstra that is not the start node
+                    if node != start_node and node is not None:
+                        count = 0
+                        while node != start_node:
+                            if previous_nodes[node] == start_node:
+                                last = node
+                                count += 1
+                            node = previous_nodes[node]
+                    self.pacman.count = count
+                    if last == None:
+                        last = node
+
+                        
+            
+                    # if we have a path we can follow
+                    if node == None:    
+                        print('no path found')
+                        possible_directions = self.pacman.findwhereenemyiscomingfrom(self.ghosts)
+                        print(possible_directions)
+                        for direction in possible_directions:
+                            if possible_directions[direction] and self.nodes.nodesLUT[start_node].neighbors[direction] is not None:
+                                break
+                        if direction == None:
+                            direction = random.choice(self.pacman.validDirections())
+                    else:
+                    
+                        direction = self.nodes.getDirection(self.nodes.nodesLUT[start_node], self.nodes.nodesLUT[last])
+                    
+                
+                old, new = self.pacman.checkIfpacmanonNewNode()
+                if old and not self.pacman.is_ghost_tooclose(self.ghosts):
+
+                    # updates the visited nodes and the length of the neighbors
+                    old = old.position.asTuple()
+                    new = new.position.asTuple()
+                    dir_ = self.nodes.getDirection(self.nodes.nodesLUT[old], self.nodes.nodesLUT[new])
+                    if dir_ is not None:
+                        self.nodes.nodesLUT[old].visited[dir_] = True
+                        self.nodes.nodesLUT[new].visited[dir_*-1] = True
+
+
+
+                        self.nodes.nodesLUT[old].neighborslength[dir_] += 10
+                        self.nodes.nodesLUT[new].neighborslength[dir_*-1] += 10
+                
+
+                
+                if self.pacman.is_ghost_tooclose(self.ghosts):
+                    direction = self.pacman.is_ghost_tooclose(self.ghosts)
+                    # check if direction is valid   
+                    
+                    for new_direction in self.nodes.nodesLUT[self.pacman.node.position.asTuple()].neighbors:
+                        print('HELLO')
+                        if new_direction is not None and new_direction != direction * -1:
+                            break
+                    direction = new_direction
+            
+        
                 self.pacman.update(dt, direction)
         else:
             self.pacman.update(dt)
